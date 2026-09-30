@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a1428">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>President Simulator — Rule the World</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header>
+  <div class="top-row">
+    <div><div id="flagName">🏛️ President Simulator</div><div id="dateLine">Choose your nation</div></div>
+    <button class="mini-btn" id="newGameBtn" title="New game">🔄</button>
+  </div>
+  <div class="stats">
+    <div class="stat"><small>Treasury</small><span class="stat-val" id="statTreasury">—</span></div>
+    <div class="stat"><small>Approval</small><span class="stat-val" id="statApproval">—</span></div>
+    <div class="stat"><small>GDP</small><span class="stat-val" id="statGDP">—</span></div>
+    <div class="stat"><small>Prestige</small><span class="stat-val" id="statPrestige">—</span></div>
+  </div>
+  <div class="approval-wrap"><div id="topApprovalBar"></div></div>
+</header>
+
+<nav class="tabs">
+  <button class="tab active" data-tab="map" onclick="switchTab('map')">🗺️ Map</button>
+  <button class="tab" data-tab="economy" onclick="switchTab('economy')">💰 Economy</button>
+  <button class="tab" data-tab="diplo" onclick="switchTab('diplo')">🤝 Nation</button>
+  <button class="tab" data-tab="decrees" onclick="switchTab('decrees')">📜 Decrees</button>
+  <button class="tab" data-tab="news" onclick="switchTab('news')">📰 News</button>
+</nav>
+
+<main>
+  <section class="panel active" id="panel-map">
+    <canvas id="map"></canvas>
+    <div class="map-tools">
+      <input id="search" placeholder="🔍 Search 193 countries..." autocomplete="off">
+      <select id="regionFilter">
+        <option value="ALL">🌍 All</option><option value="NA">NA</option><option value="LATAM">LATAM</option>
+        <option value="EUROPE">Europe</option><option value="AFRICA">Africa</option>
+        <option value="MIDEAST">Mideast</option><option value="ASIA">Asia</option><option value="OCEANIA">Oceania</option>
+      </select>
+      <select id="sortFilter"><option value="NAME">A–Z</option><option value="REL">♥ Relations</option><option value="GDP">💰 GDP</option><option value="POP">👥 Pop</option></select>
+      <button class="mini-btn" id="resetViewBtn">⌂</button>
+    </div>
+    <div class="legend">
+      <span><i class="dot" style="background:#f5c542"></i>YOU</span>
+      <span><i class="dot" style="background:#30d158"></i>Ally/Friend</span>
+      <span><i class="dot" style="background:#32ade6"></i>Trade</span>
+      <span><i class="dot" style="background:#8e8e93"></i>Neutral</span>
+      <span><i class="dot" style="background:#ff9f0a"></i>Tense</span>
+      <span><i class="dot" style="background:#ff453a"></i>Enemy/War</span>
+    </div>
+    <div id="countryList"></div>
+  </section>
+
+  <section class="panel" id="panel-economy">
+    <div class="kpi-grid" id="ecoNums"></div>
+    <div class="slider-row"><label>💸 Tax rate <span id="taxVal">20%</span></label>
+      <input type="range" id="taxRange" min="0" max="60" value="20"></div>
+    <div class="slider-row"><label>🏥 Healthcare <span id="sp_health_v">10%</span></label>
+      <input type="range" id="sp_health" min="0" max="30" value="10"></div>
+    <div class="slider-row"><label>🎓 Education <span id="sp_edu_v">8%</span></label>
+      <input type="range" id="sp_edu" min="0" max="30" value="8"></div>
+    <div class="slider-row"><label>🎖️ Military <span id="sp_mil_v">8%</span></label>
+      <input type="range" id="sp_mil" min="0" max="30" value="8"></div>
+    <div class="slider-row"><label>🏗️ Infrastructure <span id="sp_infra_v">8%</span></label>
+      <input type="range" id="sp_infra" min="0" max="30" value="8"></div>
+    <div class="howto">💡 High taxes fill the treasury but hurt approval & jobs. Healthcare & education raise approval. Military deters coups and wins wars. Infrastructure boosts growth. Win re-election every 48 months. Avoid bankruptcy (treasury &lt; −50% GDP).</div>
+  </section>
+
+  <section class="panel" id="panel-diplo"><div id="diploBox"></div></section>
+  <section class="panel" id="panel-decrees"><div id="decreeBox"></div>
+    <div class="howto">📜 Decrees are instant presidential orders. Use them in crises — each has a cost or side effect.</div>
+  </section>
+  <section class="panel" id="panel-news"><div id="newsBox"></div></section>
+</main>
+
+<div id="actionBar">
+  <button id="autoBtn">▶ Auto</button>
+  <button id="nextBtn">Next Month ⏭</button>
+</div>
+
+<div class="modal" id="eventModal"><div class="sheet">
+  <h2 id="evTitle"></h2><p id="evDesc"></p><div id="evChoices"></div>
+</div></div>
+
+<div class="modal" id="gameoverModal"><div class="sheet">
+  <h2 id="goTitle"></h2><p id="goDesc"></p>
+  <button class="big-btn" id="restartBtn">🔄 New Presidency</button>
+</div></div>
+
+<div class="modal show" id="startModal"><div class="sheet">
+  <h2>🏛️ President Simulator</h2>
+  <p>Choose any of <b>193 countries</b> with real population & GDP. Rule month by month: taxes, budgets, diplomacy, trade, alliances, sanctions — and war. Survive elections, crises & coups. 2D interactive world map. Made for phone & tablet 📱</p>
+  <select id="startCountry"></select>
+  <button class="big-btn" id="startBtn">🇺🇸 Take Office →</button>
+  <button class="ghost-btn" id="continueBtn">📂 Continue saved game</button>
+  <div class="howto">🤖 <b>How to play:</b> 1) Pick nation 2) Tap map countries for diplomacy 3) Set taxes/budgets 4) Press <b>Next Month</b>. Install on Android via browser menu → “Add to Home screen” or build APK with Capacitor (see ANDROID.md).</div>
+</div></div>
+
+<div id="toast"></div>
+
+<script src="js/countries.js"></script>
+<script src="js/borders.js"></script>
+<script src="js/events.js"></script>
+<script src="js/map.js"></script>
+<script src="js/game.js"></script>
+<script>
+window.addEventListener("DOMContentLoaded", ()=>{ GameInit(); });
+if("serviceWorker" in navigator){ window.addEventListener("load", ()=>{ navigator.serviceWorker.register("sw.js").catch(()=>{}); }); }
+</script>
+</body>
+</html>

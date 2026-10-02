@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<title>Zanqa: Medina Nights — Moroccan 3D Game</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { width:100%; height:100%; overflow:hidden; background:#1a0f0a; font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif; touch-action:none; overscroll-behavior:none; user-select:none; -webkit-user-select:none; }
+  #game { position:fixed; inset:0; }
+  canvas#scene { display:block; width:100%; height:100%; }
+  /* HUD */
+  #hud { position:fixed; inset:0; pointer-events:none; z-index:10; }
+  #topbar { position:absolute; top:0; left:0; right:0; display:flex; gap:6px; padding:8px 8px 4px; align-items:stretch; }
+  .pill { background:rgba(10,8,6,.72); border:1px solid rgba(255,200,120,.35); color:#ffe9c9; border-radius:12px; padding:6px 10px; font-size:12px; font-weight:700; backdrop-filter:blur(6px); white-space:nowrap; display:flex; align-items:center; gap:6px; }
+  .pill small { font-weight:400; opacity:.8; font-size:10px; }
+  #bars { position:absolute; top:52px; left:8px; right:118px; display:flex; flex-direction:column; gap:5px; }
+  .barwrap { background:rgba(0,0,0,.55); border-radius:10px; padding:3px 6px 5px; border:1px solid rgba(255,255,255,.15); }
+  .barwrap label { font-size:10px; color:#ffdcae; font-weight:800; letter-spacing:.06em; display:flex; justify-content:space-between; }
+  .bar { height:8px; border-radius:6px; background:#333; overflow:hidden; margin-top:2px; }
+  .bar > div { height:100%; width:100%; border-radius:6px; transition:width .25s; }
+  #healthfill { background:linear-gradient(90deg,#37d67a,#9df0b8); }
+  #highfill { background:linear-gradient(90deg,#b565ff,#ff6ec7); }
+  #alertfill { background:linear-gradient(90deg,#ffd23f,#ff8c42); }
+  #minimap { position:absolute; top:52px; right:8px; width:104px; height:104px; border-radius:14px; border:2px solid rgba(255,200,120,.5); background:rgba(20,12,8,.8); overflow:hidden; }
+  #objective { position:absolute; top:162px; left:8px; right:8px; text-align:center; }
+  #objective span { display:inline-block; background:rgba(20,10,4,.78); color:#ffe9c9; border:1px solid #ffb85c; padding:7px 14px; border-radius:20px; font-size:13px; font-weight:700; max-width:92vw; }
+  #wanted { position:absolute; top:200px; left:0; right:0; text-align:center; font-size:20px; letter-spacing:2px; text-shadow:0 2px 8px #000; display:none; }
+  #msg { position:absolute; bottom:178px; left:0; right:0; text-align:center; pointer-events:none; }
+  #msg span { display:none; background:rgba(0,0,0,.75); color:#fff; padding:8px 16px; border-radius:12px; font-size:14px; font-weight:700; border:1px solid rgba(255,255,255,.25); }
+  /* touch controls */
+  #joystick { position:absolute; left:14px; bottom:18px; width:128px; height:128px; border-radius:50%; background:rgba(255,255,255,.08); border:2px solid rgba(255,255,255,.3); pointer-events:auto; }
+  #stick { position:absolute; left:50%; top:50%; width:56px; height:56px; border-radius:50%; background:rgba(255,200,120,.9); border:2px solid #fff; transform:translate(-50%,-50%); box-shadow:0 4px 14px rgba(0,0,0,.5); }
+  #actions { position:absolute; right:12px; bottom:16px; display:flex; flex-direction:column; gap:10px; align-items:flex-end; pointer-events:auto; }
+  .btn { border:none; border-radius:16px; font-weight:900; color:#1c1008; padding:14px 20px; font-size:16px; min-width:132px; box-shadow:0 6px 18px rgba(0,0,0,.45); border:2px solid rgba(255,255,255,.7); }
+  .btn:active { transform:scale(.96); }
+  #btnAction { background:linear-gradient(180deg,#ffd23f,#ff9a3c); display:none; }
+  #btnSmoke { background:linear-gradient(180deg,#c084fc,#7c3aed); color:#fff; display:none; }
+  #btnStay { background:linear-gradient(180deg,#38e1ff,#0077ff); color:#fff; display:none; min-width:170px; font-size:18px; animation:pulse 0.8s infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.06)} }
+  #btnSprint { background:rgba(255,255,255,.85); min-width:0; padding:10px 14px; font-size:13px; }
+  #camhint { position:absolute; left:50%; bottom:16px; transform:translateX(-50%); color:rgba(255,255,255,.65); font-size:11px; background:rgba(0,0,0,.4); padding:5px 10px; border-radius:10px; pointer-events:none; }
+  /* overlays */
+  .overlay { position:fixed; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:18px; background:radial-gradient(ellipse at center,rgba(60,20,5,.92),rgba(10,5,2,.96)); backdrop-filter:blur(4px); overflow-y:auto; }
+  .card { max-width:520px; width:100%; background:linear-gradient(180deg,#fff8ec,#ffe6bd); border-radius:20px; padding:22px 20px; border:3px solid #c2410c; box-shadow:0 20px 60px rgba(0,0,0,.6); color:#3b1d0b; }
+  .card h1 { font-size:26px; line-height:1.1; margin-bottom:4px; }
+  .card h1 .ma { color:#c2410c; }
+  .card p { font-size:14px; line-height:1.5; margin:8px 0; }
+  .tag { display:inline-block; background:#111; color:#ffd23f; font-size:11px; font-weight:800; padding:4px 10px; border-radius:20px; letter-spacing:.08em; }
+  .steps { background:#fff; border-radius:12px; padding:10px 12px; border:1px dashed #c2410c; font-size:13px; margin:10px 0; }
+  .steps b { color:#c2410c; }
+  .warn { background:#fef2f2; border:1px solid #ef4444; color:#7f1d1d; border-radius:12px; padding:8px 10px; font-size:12px; margin-top:8px; }
+  .bigbtn { display:block; width:100%; margin-top:14px; background:linear-gradient(180deg,#16a34a,#14532d); color:#fff; border:none; border-radius:14px; padding:16px; font-size:18px; font-weight:900; }
+  .bigbtn:active { transform:scale(.98); }
+  .row { display:flex; gap:8px; margin-top:10px; }
+  .row button { flex:1; padding:12px; border-radius:12px; border:2px solid #c2410c; background:#fff; font-weight:800; }
+  #hud.hidden { display:none; }
+  @media (min-width:760px){ #bars{right:140px} #minimap{width:128px;height:128px} .btn{min-width:150px} }
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<div id="game"><canvas id="scene"></canvas></div>
+
+<div id="hud" class="hidden">
+  <div id="topbar">
+    <div class="pill">🪙 <span id="cash">200</span> <small>DH</small></div>
+    <div class="pill">🌿 <span id="stash">0</span> <small>stash</small></div>
+    <div class="pill">🌙 <span id="round">0/3</span> <small>nights</small></div>
+    <div class="pill">🚔 <span id="busts">0/3</span> <small>busted</small></div>
+  </div>
+  <div id="bars">
+    <div class="barwrap"><label><span>❤️ HEALTH</span><span id="healtht">100</span></label><div class="bar"><div id="healthfill"></div></div></div>
+    <div class="barwrap"><label><span>🌀 HIGH</span><span id="hight">0%</span></label><div class="bar"><div id="highfill" style="width:0%"></div></div></div>
+    <div class="barwrap"><label><span>👁️ ALERTNESS — stay active!</span><span id="alertt">100%</span></label><div class="bar"><div id="alertfill"></div></div></div>
+  </div>
+  <canvas id="minimap" width="128" height="128"></canvas>
+  <div id="objective"><span id="objtext">🔎 Find the dealer in the medina…</span></div>
+  <div id="wanted">🚨🚨🚨</div>
+  <div id="msg"><span id="msgtext"></span></div>
+  <div id="joystick"><div id="stick"></div></div>
+  <div id="actions">
+    <button class="btn" id="btnAction">🤝 BUY (30 DH)</button>
+    <button class="btn" id="btnSmoke">💨 SMOKE</button>
+    <button class="btn" id="btnStay">☕ STAY AWAKE! TAP!</button>
+    <button class="btn" id="btnSprint">🏃 SPRINT</button>
+  </div>
+  <div id="camhint">⬅️ left stick = walk &nbsp; • &nbsp; drag right side = look 👀</div>
+</div>
+
+<div class="overlay" id="startOverlay">
+  <div class="card">
+    <span class="tag">🇲🇦 3D MEDINA • MOBILE • EN / DARIJA</span>
+    <h1>ZANQA <span class="ma">— Medina Nights</span></h1>
+    <p>Salam sahbi! 🌙 You are <b>Yassine</b>, lost in the old medina of <b>Marrakech</b> at night. The story shows the <b>danger of drugs</b> — it does <b>NOT</b> encourage them.</p>
+    <div class="steps">
+      <div>1️⃣ 🔎 <b>Find the dealer</b> (yellow ❓) — follow the arrow.</div>
+      <div>2️⃣ 🤝 <b>Buy</b> — costs 30 DH. Don't let police see you!</div>
+      <div>3️⃣ 🟢 <b>Go to a hidden spot</b> (green circle, away from police).</div>
+      <div>4️⃣ 💨 <b>Smoke + STAY ACTIVE!</b> Tap <b>STAY AWAKE</b>, look around, keep alertness up for 15s. If you nod off 😴 police will smell it!</div>
+      <div>5️⃣ 🏃 <b>Survive 3 rounds</b> without getting busted 3×. Balak! Police chase if they see you!</div>
+    </div>
+    <p style="font-size:13px">🎮 <b>Phone/Tablet:</b> left joystick to walk, drag screen to look, big buttons to buy/smoke. <b>PC:</b> WASD + mouse drag + E.</p>
+    <div class="warn">⚠️ <b>Fiction + prevention:</b> Drugs destroy health, money and freedom. This game shows police, health loss and busts on purpose. If you or someone you know struggles, talk to a doctor or trusted adult. <b>La drogue = l7ebs w lmerd.</b></div>
+    <button class="bigbtn" id="btnStart">▶️ START NIGHT — Bismillah!</button>
+    <div class="row"><button id="btnHow">❓ Help</button><button id="btnMute">🔊 Sound: ON</button></div>
+  </div>
+</div>
+
+<div class="overlay" id="endOverlay" style="display:none">
+  <div class="card">
+    <span class="tag" id="endTag">🌅 NIGHT OVER</span>
+    <h1 id="endTitle">You survived!</h1>
+    <p id="endText"></p>
+    <div class="warn" id="endWarn">⚠️ Remember: this was only a game. In real life, drugs = losing money, health and freedom. Choose sport, friends and family. 💪🇲🇦</div>
+    <button class="bigbtn" id="btnRestart">🔁 PLAY AGAIN</button>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ============ helpers: sound (WebAudio, no assets) ============ */
+let audioOn = true, AC=null;
+function ac(){ if(!AC){ AC = new (window.AudioContext||window.webkitAudioContext)(); } if(AC.state==='suspended') AC.resume(); return AC; }
+function beep(f=440,d=0.15,type='square',v=0.12){ if(!audioOn) return; try{ const c=ac(),o=c.createOscillator(),g=c.createGain(); o.type=type;o.frequency.value=f; g.gain.value=v; o.connect(g); g.connect(c.destination); o.start(); g.gain.exponentialRampToValueAtTime(0.001,c.currentTime+d); o.stop(c.currentTime+d);}catch(e){} }
+function siren(){ if(!audioOn) return; try{ const c=ac(),o=c.createOscillator(),g=c.createGain(); o.type='sawtooth'; o.frequency.setValueAtTime(600,c.currentTime); o.frequency.linearRampToValueAtTime(1100,c.currentTime+0.5); o.frequency.linearRampToValueAtTime(600,c.currentTime+1.0); g.gain.value=0.06; o.connect(g);g.connect(c.destination); o.start(); o.stop(c.currentTime+1.1);}catch(e){} }
+function chaChing(){ beep(880,0.12,'square'); setTimeout(()=>beep(1320,0.18,'square'),110); }
+
+/* ============ game state ============ */
+const S = {
+  started:false, over:false,
+  cash:200, stash:0, round:0, busts:0,
+  health:100, high:0, alert:100,
+  phase:'search', // search -> bought -> smoking -> tripping
+  smokeT:0, smokeNeed:15,
+  wanted:0, wantedT:0, chaseT:0,
+  nodOff:false, lastCamMove:0,
+  sprint:false,
+};
+const PRICE = 30, NEED_ROUNDS = 3;
+
+/* ============ three setup ============ */
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = false;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2b1a3a);
+scene.fog = new THREE.Fog(0x2b1a3a, 30, 110);
+
+const camera = new THREE.PerspectiveCamera(62, innerWidth/innerHeight, 0.1, 300);
+let camYaw = Math.PI, camPitch = 0.25, camDist = 8.5;
+
+scene.add(new THREE.HemisphereLight(0xffd9a0, 0x3a1f4d, 0.95));
+const sun = new THREE.DirectionalLight(0xff9a5c, 1.1);
+sun.position.set(-30,40,20); scene.add(sun);
+const moon = new THREE.DirectionalLight(0x7c8cff, 0.35);
+moon.position.set(30,40,-20); scene.add(moon);
+
+// stars
+{
+  const g = new THREE.BufferGeometry(); const N=400, pos=new Float32Array(N*3);
+  for(let i=0;i<N;i++){ pos[i*3]=(Math.random()-0.5)*260; pos[i*3+1]=40+Math.random()*90; pos[i*3+2]=(Math.random()-0.5)*260; }
+  g.setAttribute('position', new THREE.BufferAttribute(pos,3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({color:0xffffff,size:0.5})));
+}
+// Atlas mountains backdrop
+{
+  const mat = new THREE.MeshBasicMaterial({color:0x4a3563});
+  for(let i=0;i<10;i++){ const h=14+Math.random()*14; const cone=new THREE.Mesh(new THREE.ConeGeometry(14+Math.random()*8,h,4),mat); const a=i/10*Math.PI*2; cone.position.set(Math.cos(a)*105,h/2-1,Math.sin(a)*105); cone.rotation.y=Math.random(); scene.add(cone);
+    const snow=new THREE.Mesh(new THREE.ConeGeometry(4.5,4,4),new THREE.MeshBasicMaterial({color:0xf5e8ff})); snow.position.set(cone.position.x,h-3,cone.position.z); snow.rotation.y=cone.rotation.y; scene.add(snow); }
+}
+
+/* ============ ground & medina ============ */
+const WORLD = 84;
+const colliders = []; // {x,z,hw,hd}
+function addCollider(x,z,hw,hd){ colliders.push({x,z,hw,hd}); }
+function collide(px,pz,r){
+  for(const c of colliders){
+    const dx = px-c.x, dz = pz-c.z;
+    const ox = c.hw + r - Math.abs(dx), oz = c.hd + r - Math.abs(dz);
+    if(ox>0 && oz>0){
+      if(ox<oz) px = c.x + Math.sign(dx||1)*(c.hw+r);
+      else pz = c.z + Math.sign(dz||1)*(c.hd+r);
+    }
+  }
+  const L = WORLD/2-2;
+  px = Math.max(-L,Math.min(L,px)); pz = Math.max(-L,Math.min(L,pz));
+  return [px,pz];
+}
+
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(WORLD+40,WORLD+40), new THREE.MeshLambertMaterial({color:0xc9a06a}));
+ground.rotation.x = -Math.PI/2; scene.add(ground);
+// street pattern
+{
+  const cv=document.createElement('canvas'); cv.width=cv.height=256; const g=cv.getContext('2d');
+  g.fillStyle='#c9a06a'; g.fillRect(0,0,256,256); g.fillStyle='#bd9260';
+  for(let i=0;i<300;i++){ g.fillRect(Math.random()*256,Math.random()*256,3,3); }
+  g.strokeStyle='rgba(120,70,30,.35)'; g.lineWidth=3;
+  for(let i=0;i<=4;i++){ g.beginPath(); g.moveTo(i*64,0); g.lineTo(i*64,256); g.stroke(); g.beginPath(); g.moveTo(0,i*64); g.lineTo(256,i*64); g.stroke(); }
+  const tx=new THREE.CanvasTexture(cv); tx.wrapS=tx.wrapT=THREE.RepeatWrapping; tx.repeat.set(10,10);
+  ground.material.map=tx;
+}
+
+const moroccan = [0xe8d5b5,0xd9a066,0xc97b4a,0xf2ead8,0x7fb3c8,0x3f7f9e,0xe07a5f,0xf4f1de];
+function building(x,z,w,d,h,color,withBlueDoor=true){
+  const grp=new THREE.Group();
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d), new THREE.MeshLambertMaterial({color}));
+  m.position.y=h/2; grp.add(m);
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(w+0.6,0.4,d+0.6), new THREE.MeshLambertMaterial({color:0x8b5a2b}));
+  roof.position.y=h+0.2; grp.add(roof);
+  if(withBlueDoor && Math.random()<0.8){
+    const door=new THREE.Mesh(new THREE.PlaneGeometry(1.4,2.2), new THREE.MeshLambertMaterial({color:0x1d6fa5}));
+    door.position.set(0,1.1,d/2+0.02); grp.add(door);
+    const arch=new THREE.Mesh(new THREE.CylinderGeometry(0.7,0.7,0.1,12,1,false,0,Math.PI), new THREE.MeshLambertMaterial({color:0x1d6fa5}));
+    arch.rotation.x=Math.PI/2; arch.rotation.z=Math.PI/2; arch.position.set(0,2.2,d/2+0.02); grp.add(arch);
+  }
+  // windows with warm light
+  for(let i=0;i<Math.floor(w/2);i++){
+    const win=new THREE.Mesh(new THREE.PlaneGeometry(0.7,0.9), new THREE.MeshBasicMaterial({color:Math.random()<0.5?0xffd97a:0x332211}));
+    win.position.set(-w/2+1+i*2, h*0.65, d/2+0.02); grp.add(win);
+  }
+  // zellige stripe
+  const stripe=new THREE.Mesh(new THREE.BoxGeometry(w+0.05,0.5,d+0.05), new THREE.MeshLambertMaterial({color:0x0e7c7b}));
+  stripe.position.y=h*0.35; grp.add(stripe);
+  grp.position.set(x,0,z); scene.add(grp);
+  addCollider(x,z,w/2,d/2);
+  return grp;
+}
+// medina blocks leaving streets
+building(-26,-26,14,12,7,moroccan[0]); building(-26,-8,14,10,6,moroccan[1]);
+building(-26,10,14,10,8,moroccan[3]); building(-26,28,14,10,6,moroccan[2]);
+building(-8,-28,12,10,7,moroccan[1]); building(10,-28,12,10,6,moroccan[5]);
+building(28,-26,12,12,8,moroccan[0]); building(28,-8,12,10,7,moroccan[2]);
+building(-8,28,12,10,6,moroccan[3]); building(10,28,12,10,7,moroccan[1]);
+building(28,10,12,10,6,moroccan[4]); building(28,28,12,10,8,moroccan[0]);
+building(-8,8,8,8,5,0xe07a5f); building(10,-8,8,8,5,0x3f7f9e,false);
+// minaret (mosque tower)
+{
+  const t=new THREE.Mesh(new THREE.BoxGeometry(5,22,5), new THREE.MeshLambertMaterial({color:0xf2ead8}));
+  t.position.set(-2,11,-2); scene.add(t); addCollider(-2,-2,2.5,2.5);
+  const top=new THREE.Mesh(new THREE.BoxGeometry(6,2,6), new THREE.MeshLambertMaterial({color:0x0e7c7b}));
+  top.position.set(-2,23,-2); scene.add(top);
+  const pyr=new THREE.Mesh(new THREE.ConeGeometry(3.4,4,4), new THREE.MeshLambertMaterial({color:0x1d6fa5}));
+  pyr.position.set(-2,27,-2); pyr.rotation.y=Math.PI/4; scene.add(pyr);
+  const glow=new THREE.Mesh(new THREE.SphereGeometry(0.4,8,8), new THREE.MeshBasicMaterial({color:0xffe27a}));
+  glow.position.set(-2,29.5,-2); scene.add(glow);
+}
+// fountain plaza centre
+{
+  const f=new THREE.Mesh(new THREE.CylinderGeometry(4,4.4,1,12), new THREE.MeshLambertMaterial({color:0x9fd8d8}));
+  f.position.set(0,0.5,18); scene.add(f); addCollider(0,18,4,4);
+  const w=new THREE.Mesh(new THREE.CylinderGeometry(3.4,3.4,0.3,12), new THREE.MeshBasicMaterial({color:0x2f9fd8}));
+  w.position.set(0,1.05,18); scene.add(w);
+}
+// souk stalls
+function stall(x,z,rot,color){
+  const g=new THREE.Group();
+  const table=new THREE.Mesh(new THREE.BoxGeometry(3,1,2), new THREE.MeshLambertMaterial({color:0x7c4a21}));
+  table.position.y=0.5; g.add(table);
+  const pile=new THREE.Mesh(new THREE.BoxGeometry(2.6,0.5,1.6), new THREE.MeshLambertMaterial({color}));
+  pile.position.y=1.2; g.add(pile);
+  const pole1=new THREE.Mesh(new THREE.CylinderGeometry(0.08,0.08,2.6), new THREE.MeshLambertMaterial({color:0x5b3416}));
+  pole1.position.set(-1.4,1.3,0); g.add(pole1);
+  const pole2=pole1.clone(); pole2.position.x=1.4; g.add(pole2);
+  const roof=new THREE.Mesh(new THREE.BoxGeometry(3.6,0.15,2.6), new THREE.MeshLambertMaterial({color:0xb91c1c}));
+  roof.position.y=2.6; roof.rotation.z=0.12; g.add(roof);
+  const lamp=new THREE.Mesh(new THREE.SphereGeometry(0.22,8,8), new THREE.MeshBasicMaterial({color:0xffd97a}));
+  lamp.position.y=2.2; g.add(lamp);
+  const light=new THREE.PointLight(0xffb85c, 0.7, 10); light.position.y=2.2; g.add(light);
+  g.position.set(x,0,z); g.rotation.y=rot; scene.add(g); addCollider(x,z,1.6,1.2);
+}
+stall(-14,2,0.3,0xeab308); stall(14,2,-0.3,0xef4444); stall(-14,-16,0,0x22c55e); stall(14,-16,0,0xf97316);
+// palms
+function palm(x,z){
+  const g=new THREE.Group();
+  const trunk=new THREE.Mesh(new THREE.CylinderGeometry(0.3,0.45,5,7), new THREE.MeshLambertMaterial({color:0x7c4a21}));
+  trunk.position.y=2.5; trunk.rotation.z=(Math.random()-0.5)*0.2; g.add(trunk);
+  for(let i=0;i<6;i++){ const leaf=new THREE.Mesh(new THREE.ConeGeometry(0.5,3.2,4), new THREE.MeshLambertMaterial({color:0x2d7a3a}));
+    leaf.position.y=5.2; leaf.rotation.z=Math.PI/2.4; leaf.rotation.y=i/6*Math.PI*2; leaf.translateY(1.1); g.add(leaf); }
+  g.position.set(x,0,z); scene.add(g); addCollider(x,z,0.5,0.5);
+}
+palm(-4,24); palm(4,24); palm(-20,18); palm(20,18); palm(-20,-22); palm(20,-22); palm(0,-34); palm(-34,0); palm(34,0);
+// lantern posts
+for(const [x,z] of [[-10,0],[10,0],[0,-10],[0,10],[-18,-10],[18,10]]){
+  const p=new THREE.Mesh(new THREE.CylinderGeometry(0.12,0.12,4,6), new THREE.MeshLambertMaterial({color:0x222222}));
+  p.position.set(x,2,z); scene.add(p);
+  const l=new THREE.Mesh(new THREE.SphereGeometry(0.35,8,8), new THREE.MeshBasicMaterial({color:0xffc86e}));
+  l.position.set(x,4.2,z); scene.add(l);
+  const li=new THREE.PointLight(0xffb85c,0.5,12); li.position.set(x,4.2,z); scene.add(li);
+}
+
+/* ============ characters ============ */
+function makePerson(shirt,pants,hood=false){
+  const g=new THREE.Group();
+  const legs=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.8,0.35), new THREE.MeshLambertMaterial({color:pants}));
+  legs.position.y=0.4; g.add(legs);
+  const body=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.9,0.45), new THREE.MeshLambertMaterial({color:shirt}));
+  body.position.y=1.25; g.add(body);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(0.32,12,10), new THREE.MeshLambertMaterial({color:0xd9a066}));
+  head.position.y=2.0; g.add(head);
+  if(hood){ const h=new THREE.Mesh(new THREE.ConeGeometry(0.42,0.7,8), new THREE.MeshLambertMaterial({color:0x222222})); h.position.y=2.25; g.add(h); }
+  else { const cap=new THREE.Mesh(new THREE.BoxGeometry(0.4,0.12,0.4), new THREE.MeshLambertMaterial({color:0xb91c1c})); cap.position.y=2.3; g.add(cap); }
+  scene.add(g); return g;
+}
+const player = makePerson(0xeeeeee, 0x1f2937, false);
+let px=3,pz=-4, pvx=0,pvz=0, playerYaw=Math.PI;
+
+function labelSprite(text,bg='#fbbf24'){
+  const cv=document.createElement('canvas'); cv.width=256; cv.height=96; const c=cv.getContext('2d');
+  c.fillStyle=bg; c.beginPath(); c.roundRect(8,8,240,80,20); c.fill();
+  c.fillStyle='#000'; c.font='bold 52px sans-serif'; c.textAlign='center'; c.textBaseline='middle'; c.fillText(text,128,50);
+  const t=new THREE.CanvasTexture(cv); const s=new THREE.Sprite(new THREE.SpriteMaterial({map:t,depthTest:false})); s.scale.set(2.4,0.9,1); return s;
+}
+
+// dealers: 3 spots, one active at a time (compass guides you)
+const dealerSpots=[{x:-19,z:-2},{x:19,z:-22},{x:-13,z:-21},{x:22,z:22},{x:-33,z:16}];
+const dealers=[];
+dealerSpots.forEach((d,i)=>{
+  const m=makePerson(0x222222,0x111111,true);
+  m.position.set(d.x,0,d.z);
+  const tag=labelSprite('❓','#fbbf24'); tag.position.set(d.x,3.1,d.z); scene.add(tag);
+  dealers.push({mesh:m,tag,...d});
+});
+let activeDealer=0;
+function setActiveDealer(i){ activeDealer=i; dealers.forEach((d,j)=>{ d.tag.visible=(j===i); d.mesh.visible=true; }); }
+setActiveDealer(0);
+
+// safe smoke spots (hidden courtyards)
+const spotDefs=[{x:-32,z:-14},{x:32,z:-2},{x:4,z:8,r:3.6}];
+const spots=[];
+spotDefs.forEach(s=>{
+  const ring=new THREE.Mesh(new THREE.RingGeometry(2.6,3.6,28), new THREE.MeshBasicMaterial({color:0x22ff88,transparent:true,opacity:0.85,side:THREE.DoubleSide}));
+  ring.rotation.x=-Math.PI/2; ring.position.set(s.x,0.06,s.z); scene.add(ring);
+  const tag=labelSprite('🟢 SAFE','#22c55e'); tag.position.set(s.x,2.6,s.z); scene.add(tag);
+  spots.push({...s,ring,tag});
+});
+
+// police
+const police=[];
+const patrolRoutes=[
+  [{x:-12,z:-12},{x:12,z:-12},{x:12,z:12},{x:-12,z:12}],
+  [{x:20,z:-14},{x:20,z:14},{x:30,z:14},{x:30,z:-14}],
+  [{x:-30,z:-18},{x:-30,z:10},{x:-18,z:10},{x:-18,z:-18}],
+  [{x:-6,z:-32},{x:-6,z:32},{x:6,z:32},{x:6,z:-32}],
+];
+patrolRoutes.forEach((route,i)=>{
+  const m=makePerson(0x1d4ed8,0x0f172a,false);
+  const cap=m.children[2]; if(cap) cap.material=new THREE.MeshLambertMaterial({color:0x1d4ed8});
+  const flash=new THREE.Mesh(new THREE.SphereGeometry(0.18,8,8), new THREE.MeshBasicMaterial({color:i%2?0xff0000:0x0044ff}));
+  flash.position.y=2.55; m.add(flash);
+  const cone=new THREE.Mesh(new THREE.ConeGeometry(4.2,9,20,1,true), new THREE.MeshBasicMaterial({color:0xffff88,transparent:true,opacity:0.16,side:THREE.DoubleSide,depthWrite:false}));
+  cone.rotation.x=Math.PI/2; cone.position.y=1.2; m.add(cone); cone.position.z=0; cone.translateZ(0); 
+  // place cone forward: parent it offset
+  cone.position.set(0,1.1,4.2); cone.rotation.x=-Math.PI/2;
+  m.position.set(route[0].x,0,route[0].z);
+  scene.add(cone);
+  police.push({mesh:m,flash,cone,route,wi:1,phase:Math.random()*10,chase:false,lostT:0,tx:route[0].x,tz:route[0].z,yaw:0,alert:0});
+});
+
+// smoke particles
+const puffGeo=new THREE.BufferGeometry(); const PN=60; const ppos=new Float32Array(PN*3); const pvel=[];
+for(let i=0;i<PN;i++){ ppos[i*3]=0;ppos[i*3+1]=-10;ppos[i*3+2]=0; pvel.push(0); }
+puffGeo.setAttribute('position',new THREE.BufferAttribute(ppos,3));
+const puffs=new THREE.Points(puffGeo,new THREE.PointsMaterial({color:0xdddddd,size:0.5,transparent:true,opacity:0.7}));
+scene.add(puffs);
+let puffIdx=0;
+function puff(x,y,z){ ppos[puffIdx*3]=x; ppos[puffIdx*3+1]=y; ppos[puffIdx*3+2]=z; pvel[puffIdx]=0.8+Math.random()*0.6; puffIdx=(puffIdx+1)%PN; }
+
+// guide arrow
+const arrow=new THREE.Mesh(new THREE.ConeGeometry(0.4,1.2,8), new THREE.MeshBasicMaterial({color:0xffd23f}));
+arrow.rotation.x=Math.PI/2; scene.add(arrow);
+
+/* ============ input: joystick + drag + keys ============ */
+const joy={x:0,y:0,active:false,id:null};
+const joyEl=document.getElementById('joystick'), stickEl=document.getElementById('stick');
+function joyCenter(){ const r=joyEl.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2,r:r.width/2}; }
+joyEl.addEventListener('touchstart',e=>{ e.preventDefault(); joy.active=true; joy.id=e.changedTouches[0].identifier; },{passive:false});
+addEventListener('touchmove',e=>{
+  for(const t of e.changedTouches){
+    if(joy.active && t.identifier===joy.id){
+      const c=joyCenter(); let dx=(t.clientX-c.x)/c.r, dy=(t.clientY-c.y)/c.r;
+      const l=Math.hypot(dx,dy); if(l>1){dx/=l;dy/=l;}
+      joy.x=dx; joy.y=dy;
+      stickEl.style.transform=`translate(calc(-50% + ${dx*34}px), calc(-50% + ${dy*34}px))`;
+    }
+  }
+  // camera drag handled separately below
+},{passive:false});
+addEventListener('touchend',e=>{ for(const t of e.changedTouches){ if(t.identifier===joy.id){ joy.active=false; joy.id=null; joy.x=joy.y=0; stickEl.style.transform='translate(-50%,-50%)'; } } });
+
+// camera drag on right half
+let dragId=null,lx=0,ly=0;
+addEventListener('touchstart',e=>{ for(const t of e.changedTouches){ if(t.clientX>innerWidth*0.35 && !(t.target.closest&&t.target.closest('#actions'))){ if(dragId===null){dragId=t.identifier;lx=t.clientX;ly=t.clientY;} } } },{passive:true});
+addEventListener('touchmove',e=>{ for(const t of e.changedTouches){ if(t.identifier===dragId){ camYaw-=(t.clientX-lx)*0.008; camPitch+=(t.clientY-ly)*0.005; camPitch=Math.max(0.05,Math.min(1.1,camPitch)); lx=t.clientX;ly=t.clientY; S.lastCamMove=performance.now(); } } },{passive:true});
+addEventListener('touchend',e=>{ for(const t of e.changedTouches){ if(t.identifier===dragId) dragId=null; } });
+// mouse drag look (PC)
+let mdown=false;
+canvas.addEventListener('mousedown',()=>mdown=true); addEventListener('mouseup',()=>mdown=false);
+addEventListener('mousemove',e=>{ if(mdown){ camYaw-=e.movementX*0.006; camPitch+=e.movementY*0.004; camPitch=Math.max(0.05,Math.min(1.1,camPitch)); S.lastCamMove=performance.now(); } });
+const keys={};
+addEventListener('keydown',e=>{ keys[e.key.toLowerCase()]=true; if(e.key.toLowerCase()==='e') doAction(); });
+addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
+
+/* ============ UI ============ */
+const $=id=>document.getElementById(id);
+const hud=$('hud'), objtext=$('objtext'), msgtext=$('msgtext'), wantedEl=$('wanted');
+let msgTimer=null;
+function toast(t,ms=2200){ msgtext.textContent=t; msgtext.style.display='inline-block'; clearTimeout(msgTimer); msgTimer=setTimeout(()=>msgtext.style.display='none',ms); }
+function refreshHUD(){
+  $('cash').textContent=S.cash; $('stash').textContent=S.stash;
+  $('round').textContent=`${S.round}/${NEED_ROUNDS}`; $('busts').textContent=`${S.busts}/3`;
+  $('healthfill').style.width=S.health+'%'; $('healtht').textContent=Math.round(S.health);
+  $('highfill').style.width=S.high+'%'; $('hight').textContent=Math.round(S.high)+'%';
+  $('alertfill').style.width=S.alert+'%'; $('alertt').textContent=Math.round(S.alert)+'%';
+  $('alertfill').style.background = S.alert<30 ? '#ef4444' : 'linear-gradient(90deg,#ffd23f,#ff8c42)';
+  const anyChase=police.some(p=>p.chase);
+  wantedEl.style.display=anyChase?'block':'none';
+  if(anyChase) wantedEl.textContent='🚨 BALAK! POLICE! RUN! 🏃'.slice(0, 8+Math.floor(performance.now()/300)%4+8);
+  // objective
+  let o='';
+  if(S.phase==='search') o='🔎 Find the dealer ❓ — follow the golden arrow';
+  else if(S.phase==='bought') o='🟢 Go to a GREEN safe spot, far from police!';
+  else if(S.phase==='smoking') o='💨 Smoking… TAP ☕ STAY AWAKE + look around!';
+  else if(S.phase==='tripping') o='😵‍💫 You are high! Walk it off… alertness drains!';
+  objtext.textContent=o;
+  // buttons visibility (near checks set flags)
+  $('btnAction').style.display = nearDealer&&S.phase==='search' ? 'block':'none';
+  $('btnSmoke').style.display = nearSpot&&S.phase==='bought' ? 'block':'none';
+  $('btnStay').style.display = (S.phase==='smoking'||S.phase==='tripping') ? 'block':'none';
+}
+let nearDealer=false, nearSpot=false;
+$('btnAction').addEventListener('click',()=>doAction());
+$('btnSmoke').addEventListener('click',()=>doSmoke());
+$('btnStay').addEventListener('click',e=>{ e.preventDefault(); stayAwakeTap(); },{passive:false});
+$('btnSprint').addEventListener('touchstart',e=>{e.preventDefault();S.sprint=true;},{passive:false});
+$('btnSprint').addEventListener('touchend',()=>S.sprint=false);
+$('btnSprint').addEventListener('mousedown',()=>S.sprint=true);
+$('btnSprint').addEventListener('mouseup',()=>S.sprint=false);
+$('btnMute').addEventListener('click',e=>{ audioOn=!audioOn; e.target.textContent=audioOn?'🔊 Sound: ON':'🔇 Sound: OFF'; });
+$('btnHow').addEventListener('click',()=>toast('⬅️ Joystick = move • drag = look • E = action • Sprint to escape police!',3200));
+
+function doAction(){
+  if(!S.started||S.over) return;
+  if(!(nearDealer&&S.phase==='search')) return;
+  if(S.cash<PRICE){ toast('💸 Ma3ndekch flous! No money!'); beep(160,0.3,'sawtooth'); return; }
+  S.cash-=PRICE; S.stash++; S.phase='bought';
+  chaChing(); toast('🤝 Shrit! Now go to a 🟢 SAFE spot — police may have seen! 👀');
+  // buying in sight raises suspicion
+  for(const p of police){ const d=Math.hypot(p.mesh.position.x-px,p.mesh.position.z-pz); if(d<16){ p.alert=Math.min(1,p.alert+0.7); } }
+  updateDealerTag();
+}
+function updateDealerTag(){ /* keep arrow logic */ }
+function doSmoke(){
+  if(!(nearSpot&&S.phase==='bought')) return;
+  if(S.stash<=0) return;
+  S.stash--; S.phase='smoking'; S.smokeT=0; S.alert=Math.max(S.alert,70);
+  beep(300,0.4,'sine'); toast('💨 Smoking… STAY ACTIVE! Tap ☕ + move camera!');
+}
+function stayAwakeTap(){
+  if(S.phase!=='smoking'&&S.phase!=='tripping') return;
+  S.alert=Math.min(100,S.alert+14);
+  beep(700+Math.random()*300,0.08,'square',0.08);
+  puff(px+(Math.random()-0.5),2.1,pz+(Math.random()-0.5));
+}
+function startGame(){
+  ac(); S.started=true; S.over=false;
+  $('startOverlay').style.display='none'; $('endOverlay').style.display='none'; hud.classList.remove('hidden');
+  camera.position.set(px-Math.sin(camYaw)*Math.cos(camPitch)*camDist, Math.sin(camPitch)*camDist+1.6, pz-Math.cos(camYaw)*Math.cos(camPitch)*camDist);
+  toast('Salam! 🌙 Find dealer ❓ Lmouhim: stay away from police! 🚔',3000);
+}
+$('btnStart').addEventListener('click',startGame);
+$('btnRestart').addEventListener('click',()=>location.reload());
+
+/* ============ police AI + LOS ============ */
+const ray=new THREE.Raycaster();
+function losBlocked(ax,az,bx,bz){
+  // sample midpoint vs building AABBs (cheap LOS)
+  for(const c of colliders){
+    if(c.hw>3||c.hd>3){ // only big buildings block sight
+      // segment vs rect test (sample 8 points)
+      for(let t=0.15;t<0.95;t+=0.14){
+        const x=ax+(bx-ax)*t, z=az+(bz-az)*t;
+        if(Math.abs(x-c.x)<c.hw && Math.abs(z-c.z)<c.hd) return true;
+      }
+    }
+  }
+  return false;
+}
+function policeCanSee(p){
+  const dx=px-p.mesh.position.x, dz=pz-p.mesh.position.z;
+  const d=Math.hypot(dx,dz);
+  const smoking = (S.phase==='smoking');
+  let range = smoking?17:11;
+  if(S.high>50) range+=3; // staggering, easier to spot
+  if(d>range) return false;
+  const ang=Math.atan2(dx,dz);
+  let da=((ang-p.yaw+Math.PI*3)%(Math.PI*2))-Math.PI;
+  const fov = p.chase? 1.5 : 0.75;
+  const behind = Math.abs(da)<fov;
+  const veryClose = d < (smoking?6:3.2);
+  if(!behind && !veryClose) return false;
+  if(losBlocked(p.mesh.position.x,p.mesh.position.z,px,pz)) return false;
+  return true;
+}
+
+/* ============ minimap ============ */
+const mm=$('minimap').getContext('2d');
+function drawMinimap(){
+  mm.fillStyle='#241610'; mm.fillRect(0,0,128,128);
+  const s=128/WORLD;
+  const dot=(x,z,c,r=3)=>{ mm.fillStyle=c; mm.beginPath(); mm.arc((x+WORLD/2)*s,(z+WORLD/2)*s,r,0,7); mm.fill(); };
+  // spots
+  for(const sp of spots) dot(sp.x,sp.z,'#22ff88',4);
+  // active dealer
+  const ad=dealers[activeDealer]; if(S.phase==='search') dot(ad.x,ad.z,'#ffd23f',4);
+  for(const p of police) dot(p.mesh.position.x,p.mesh.position.z,p.chase?'#ff2222':'#5577ff',3);
+  dot(px,pz,'#ffffff',3.5);
+  // view dir
+  mm.strokeStyle='#fff'; mm.beginPath();
+  mm.moveTo((px+WORLD/2)*s,(pz+WORLD/2)*s);
+  mm.lineTo((px+Math.sin(playerYaw)*6+WORLD/2)*s,(pz+Math.cos(playerYaw)*6+WORLD/2)*s); mm.stroke();
+}
+
+/* ============ main loop ============ */
+const clock=new THREE.Clock();
+let bob=0;
+function endGame(win,title,text){
+  S.over=true;
+  $('endTag').textContent=win?'🏆 SURVIVED THE NIGHT':'🚔 GAME OVER';
+  $('endTitle').textContent=title;
+  $('endText').textContent=text;
+  $('endOverlay').style.display='flex';
+  if(win){ chaChing(); setTimeout(chaChing,300); } else siren();
+}
+function busted(by){
+  S.busts++; S.wanted=0; S.high=Math.max(0,S.high-60); S.alert=60; S.stash=0; S.cash=Math.max(0,S.cash-50);
+  S.phase='search';
+  for(const p of police){ p.chase=false; p.alert=0; }
+  // teleport player to open street, police reset a bit
+  px=3; pz=-4;
+  toast('🚔 TCHEDITI! Busted! -50 DH, stash gone! ('+S.busts+'/3)',3000); siren();
+  setActiveDealer((activeDealer+1)%dealers.length);
+  if(S.busts>=3) endGame(false,'Tchediti 3 times! The night ends at the commissariat.',
+    'The police took you in. In this game you lose money and freedom — in real life drugs cost much more: health, family, future. Say NO to drugs. (La drogue katdi l7ebs.)');
+}
+function roundComplete(){
+  S.round++; S.health=Math.max(20,S.health-8);
+  if(S.round>=NEED_ROUNDS){
+    endGame(true,'Sb7! You survived the medina night 🌅',
+      `You finished ${NEED_ROUNDS} rounds with ${S.cash} DH left and health ${Math.round(S.health)}. But even “winning” here cost you health + money — that is the real message: drugs always take more than they give.`);
+  } else {
+    S.phase='search'; S.cash+=40; // odd job reward
+    setActiveDealer(Math.floor(Math.random()*dealers.length));
+    toast(`✅ Round ${S.round}/${NEED_ROUNDS} done! +40 DH odd-job. Find next dealer! 💪`,3000);
+    chaChing();
+  }
+}
+
+function tick(){
+  requestAnimationFrame(tick);
+  const dt=Math.min(0.05,clock.getDelta());
+  const now=performance.now();
+
+  if(S.started && !S.over){
+    /* --- movement --- */
+    let ix=joy.x, iy=joy.y;
+    if(keys['w']||keys['arrowup']) iy-=1; if(keys['s']||keys['arrowdown']) iy+=1;
+    if(keys['a']||keys['arrowleft']) ix-=1; if(keys['d']||keys['arrowright']) ix+=1;
+    const il=Math.hypot(ix,iy); if(il>1){ix/=il;iy/=il;}
+    const sp=(S.sprint?7.2:4.4)*(S.phase==='tripping'?0.85:1)*(S.alert<20?0.6:1);
+    const fx=Math.sin(camYaw), fz=Math.cos(camYaw);
+    const rx=Math.sin(camYaw-Math.PI/2), rz=Math.cos(camYaw-Math.PI/2);
+    let mx=fx*(-iy)+rx*(ix), mz=fz*(-iy)+rz*(ix);
+    // high wobble
+    if(S.high>10){ const w=(S.high/100)*1.4; mx+=(Math.random()-0.5)*w*dt*8; mz+=(Math.random()-0.5)*w*dt*8; }
+    px+=mx*sp*dt; pz+=mz*sp*dt;
+    [px,pz]=collide(px,pz,0.55);
+    if(il>0.1){ playerYaw=Math.atan2(mx,mz); bob+=dt*10*il; }
+    player.position.set(px,Math.abs(Math.sin(bob))*0.08,pz);
+    player.rotation.y=playerYaw;
+
+    /* --- proximity --- */
+    const ad=dealers[activeDealer];
+    nearDealer=Math.hypot(ad.x-px,ad.z-pz)<3.8;
+    nearSpot=spots.some(s=>Math.hypot(s.x-px,s.z-pz)<4.2);
+    ad.tag.position.y=3.1+Math.sin(now/400)*0.15;
+
+    // guide arrow above player pointing to target
+    let tx,tz;
+    if(S.phase==='search'){tx=ad.x;tz=ad.z;}
+    else if(S.phase==='bought'){ let best=1e9; for(const s of spots){const d=Math.hypot(s.x-px,s.z-pz); if(d<best){best=d;tx=s.x;tz=s.z;}} }
+    else { tx=px+Math.sin(playerYaw)*5; tz=pz+Math.cos(playerYaw)*5; }
+    if(S.phase!=='smoking'&&S.phase!=='tripping'){
+      const a=Math.atan2(tx-px,tz-pz);
+      arrow.visible=true;
+      arrow.position.set(px+Math.sin(a)*1.6,2.6,pz+Math.cos(a)*1.6);
+      arrow.lookAt(tx,2.6,tz); arrow.rotateX(Math.PI/2);
+    } else arrow.visible=false;
+
+    /* --- smoking / high / alertness --- */
+    if(S.phase==='smoking'){
+      S.smokeT+=dt;
+      S.alert-=dt*(9 + (now-S.lastCamMove>3000?7:0)); // must look around!
+      S.high=Math.min(100,S.high+dt*6);
+      if(Math.random()<dt*8) puff(px+(Math.random()-0.5)*0.6,2.0,pz+(Math.random()-0.5)*0.6);
+      if(S.alert<=0){ S.alert=0; S.nodOff=true; }
+      if(S.smokeT>=S.smokeNeed){
+        S.phase='tripping'; S.smokeT=0;
+        toast('😵‍💫 Rasek skhaf! Walk it off — keep tapping STAY AWAKE!',2800);
+      }
+    } else if(S.phase==='tripping'){
+      S.smokeT+=dt;
+      S.alert-=dt*7; S.high=Math.max(0,S.high-dt*5);
+      if(Math.random()<dt*3) puff(px,1.8,pz);
+      if(S.alert<=0) S.alert=0;
+      if(S.smokeT>8){ S.phase='search'; setActiveDealer(Math.floor(Math.random()*dealers.length)); roundComplete(); if(S.over) return; }
+    } else {
+      // sober recovery
+      S.alert=Math.min(100,S.alert+dt*4);
+      S.high=Math.max(0,S.high-dt*2);
+      if(S.high>60) S.health-=dt*1.2;
+    }
+    if(S.alert<=0 && !S.nodOff){ S.nodOff=true; toast('😴 N3esti! You nodded off — police can smell it! TAP! TAP!',2600); siren(); }
+    if(S.alert>25) S.nodOff=false;
+    if(S.health<=0){ S.health=0; refreshHUD(); endGame(false,'Overdose — your body gave up.',
+      'Your health hit zero. This is the truth the game wants to show: drugs break the body. In real life, call emergency (15 / 19 in Morocco) and ask a doctor for help. You matter.'); return; }
+
+    /* --- police AI --- */
+    let anyChase=false;
+    for(const p of police){
+      const m=p.mesh.position;
+      const sees=policeCanSee(p);
+      if(sees){ p.alert=Math.min(1.2,p.alert+dt*(S.phase==='smoking'?1.2:0.7)); }
+      else p.alert=Math.max(0,p.alert-dt*0.25);
+      if(!p.chase && p.alert>=1){ p.chase=true; siren(); toast('🚨 BALAK! Police spotted you! RUN! 🏃',2200); }
+      let speed=2.6;
+      if(p.chase){
+        anyChase=true; speed=5.0; S.wanted=1;
+        p.tx=px; p.tz=pz; p.lostT=0;
+        const d=Math.hypot(px-m.x,pz-m.z);
+        if(d<2.2){ busted(p); break; }
+        // lose them by distance + breaking LOS
+        if(d>20 && losBlocked(m.x,m.z,px,pz)){ p.lostT+=dt; if(p.lostT>4){ p.chase=false; p.alert=0.3; toast('😮‍💨 You lost them… hide and breathe.',2000);} }
+        else p.lostT=0;
+        if(!sees){ p.chaseT=(p.chaseT||0)+dt; if(p.chaseT>9){ p.chase=false; p.chaseT=0; p.alert=0.2; } } else p.chaseT=0;
+      } else {
+        // patrol waypoints
+        const wp=p.route[p.wi];
+        const d=Math.hypot(wp.x-m.x,wp.z-m.z);
+        if(d<1.2){ p.wi=(p.wi+1)%p.route.length; }
+        else { p.tx=wp.x; p.tz=wp.z; }
+      }
+      // move
+      const dx=p.tx-m.x, dz=p.tz-m.z, dd=Math.hypot(dx,dz);
+      if(dd>0.3){
+        const want=Math.atan2(dx,dz);
+        let dy=((want-p.yaw+Math.PI*3)%(Math.PI*2))-Math.PI;
+        p.yaw+=Math.max(-2.4*dt,Math.min(2.4*dt,dy));
+        m.x+=Math.sin(p.yaw)*speed*dt; m.z+=Math.cos(p.yaw)*speed*dt;
+        [m.x,m.z]=collide(m.x,m.z,0.55);
+        m.y=Math.abs(Math.sin(now/300+p.phase))*0.06;
+      }
+      p.mesh.rotation.y=p.yaw;
+      // cone faces forward
+      p.cone.position.set(m.x+Math.sin(p.yaw)*4.2, 0.4, m.z+Math.cos(p.yaw)*4.2);
+      p.cone.rotation.z=-p.yaw; p.cone.rotation.x=-Math.PI/2;
+      p.cone.material.opacity=p.chase?0.3:0.14;
+      p.flash.material.color.setHex(Math.floor(now/250)%2?0xff2222:0x2255ff);
+      if(p.chase && Math.random()<dt*2) beep(500,0.1,'sawtooth',0.04);
+    }
+    if(!anyChase){ S.wanted=Math.max(0,S.wanted-dt*0.2); }
+
+    // nodding off attracts nearby police
+    if(S.nodOff){ for(const p of police){ const d=Math.hypot(p.mesh.position.x-px,p.mesh.position.z-pz); if(d<22 && !losBlocked(p.mesh.position.x,p.mesh.position.z,px,pz)){ p.alert=Math.min(1.2,p.alert+dt*0.8);} } }
+
+    refreshHUD();
+    drawMinimap();
+  }
+
+  /* --- camera --- */
+  const sway=(S.high/100)*0.35 + (S.alert<25?0.2:0);
+  const sx=sway*Math.sin(now/500), sy=sway*Math.cos(now/700);
+  const cx=px-Math.sin(camYaw)*Math.cos(camPitch)*camDist + sx;
+  const cz=pz-Math.cos(camYaw)*Math.cos(camPitch)*camDist;
+  const cy=Math.sin(camPitch)*camDist+1.6+sy;
+  camera.position.lerp(new THREE.Vector3(cx,cy,cz),0.18);
+  camera.lookAt(px,1.5,pz);
+
+  // puffs rise
+  const arr=puffGeo.attributes.position.array;
+  for(let i=0;i<PN;i++){ if(arr[i*3+1]>-5){ arr[i*3+1]+=pvel[i]*dt; arr[i*3]+=Math.sin(now/400+i)*dt*0.4; } }
+  puffGeo.attributes.position.needsUpdate=true;
+
+  // lantern flicker + ring pulse
+  const t=now/1000;
+  spots.forEach((s,i)=>{ s.ring.scale.setScalar(1+Math.sin(t*3+i)*0.06); s.tag.position.y=2.6+Math.sin(t*2+i)*0.12; });
+
+  renderer.render(scene,camera);
+}
+addEventListener('resize',()=>{ camera.aspect=innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth,innerHeight); });
+refreshHUD();
+tick();
+</script>
+</body>
+</html>
